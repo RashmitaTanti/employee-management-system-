@@ -23,146 +23,28 @@ class EmployeeController extends Controller
         $department = $request->input('department');
         $minSalary = $request->input('min_salary');
         $maxSalary = $request->input('max_salary');
-
-        // Joining Date Filters
         $fromDate = $request->input('from_date');
         $toDate = $request->input('to_date');
 
-        // Sorting
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = $request->input('sort_direction', 'desc');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Safe Sorting
-        |--------------------------------------------------------------------------
-        */
+        [$sortBy, $sortDirection] = $this->validateSorting(
+            $sortBy,
+            $sortDirection
+        );
 
-        $allowedSortColumns = [
-            'employee_code',
-            'name',
-            'joining_date',
-            'salary',
-            'created_at',
-        ];
-
-        $allowedSortDirections = [
-            'asc',
-            'desc',
-        ];
-
-        if (! in_array($sortBy, $allowedSortColumns, true)) {
-            $sortBy = 'created_at';
-        }
-
-        if (! in_array($sortDirection, $allowedSortDirections, true)) {
-            $sortDirection = 'desc';
-        }
-
-        $employees = Employee::query()
-
-            // Search
-            ->when($search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where(
-                        'employee_code',
-                        'like',
-                        "%{$search}%"
-                    )
-                        ->orWhere(
-                            'name',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'email',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'phone',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'department',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'position',
-                            'like',
-                            "%{$search}%"
-                        );
-                });
-            })
-
-            // Department Filter
-            ->when($department, function ($query, $department) {
-                $query->where(
-                    'department_code',
-                    $department
-                );
-            })
-
-            // Minimum Salary Filter
-            ->when(
-                $minSalary !== null && $minSalary !== '',
-                function ($query) use ($minSalary) {
-                    $query->where(
-                        'salary',
-                        '>=',
-                        $minSalary
-                    );
-                }
-            )
-
-            // Maximum Salary Filter
-            ->when(
-                $maxSalary !== null && $maxSalary !== '',
-                function ($query) use ($maxSalary) {
-                    $query->where(
-                        'salary',
-                        '<=',
-                        $maxSalary
-                    );
-                }
-            )
-
-            // Joining Date - From
-            ->when(
-                $fromDate !== null && $fromDate !== '',
-                function ($query) use ($fromDate) {
-                    $query->whereDate(
-                        'joining_date',
-                        '>=',
-                        $fromDate
-                    );
-                }
-            )
-
-            // Joining Date - To
-            ->when(
-                $toDate !== null && $toDate !== '',
-                function ($query) use ($toDate) {
-                    $query->whereDate(
-                        'joining_date',
-                        '<=',
-                        $toDate
-                    );
-                }
-            )
-
-            // Sorting
-            ->orderBy(
-                $sortBy,
-                $sortDirection
-            )
-
-            // Pagination
+        $employees = $this->employeeQuery(
+            $search,
+            $department,
+            $minSalary,
+            $maxSalary,
+            $fromDate,
+            $toDate,
+            $sortBy,
+            $sortDirection
+        )
             ->paginate(5)
-
-            // Keep all filters and sorting during pagination
             ->withQueryString();
 
         $departments = Department::orderBy('name')->get([
@@ -181,12 +63,63 @@ class EmployeeController extends Controller
                 'department' => $department,
                 'min_salary' => $minSalary,
                 'max_salary' => $maxSalary,
-
-                // Joining Date Filters
                 'from_date' => $fromDate,
                 'to_date' => $toDate,
+                'sort_by' => $sortBy,
+                'sort_direction' => $sortDirection,
+            ],
+        ]);
+    }
 
-                // Sorting
+    /**
+     * Print all employees matching current filters.
+     *
+     * IMPORTANT:
+     * No pagination is used.
+     */
+    public function printEmployeeList(Request $request)
+    {
+        $search = $request->input('search');
+        $department = $request->input('department');
+        $minSalary = $request->input('min_salary');
+        $maxSalary = $request->input('max_salary');
+        $fromDate = $request->input('from_date');
+        $toDate = $request->input('to_date');
+
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortDirection = $request->input('sort_direction', 'desc');
+
+        [$sortBy, $sortDirection] = $this->validateSorting(
+            $sortBy,
+            $sortDirection
+        );
+
+        /*
+         * IMPORTANT:
+         * get() is used instead of paginate().
+         * Therefore ALL matching employees are printed.
+         */
+        $employees = $this->employeeQuery(
+            $search,
+            $department,
+            $minSalary,
+            $maxSalary,
+            $fromDate,
+            $toDate,
+            $sortBy,
+            $sortDirection
+        )->get();
+
+        return Inertia::render('employees/print', [
+            'employees' => $employees,
+
+            'filters' => [
+                'search' => $search,
+                'department' => $department,
+                'min_salary' => $minSalary,
+                'max_salary' => $maxSalary,
+                'from_date' => $fromDate,
+                'to_date' => $toDate,
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
             ],
@@ -202,163 +135,35 @@ class EmployeeController extends Controller
         $department = $request->input('department');
         $minSalary = $request->input('min_salary');
         $maxSalary = $request->input('max_salary');
-
-        // Joining Date Filters
         $fromDate = $request->input('from_date');
         $toDate = $request->input('to_date');
 
-        // Sorting
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = $request->input('sort_direction', 'desc');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Safe Sorting
-        |--------------------------------------------------------------------------
-        */
+        [$sortBy, $sortDirection] = $this->validateSorting(
+            $sortBy,
+            $sortDirection
+        );
 
-        $allowedSortColumns = [
-            'employee_code',
-            'name',
-            'joining_date',
-            'salary',
-            'created_at',
-        ];
-
-        $allowedSortDirections = [
-            'asc',
-            'desc',
-        ];
-
-        if (! in_array($sortBy, $allowedSortColumns, true)) {
-            $sortBy = 'created_at';
-        }
-
-        if (! in_array($sortDirection, $allowedSortDirections, true)) {
-            $sortDirection = 'desc';
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Employee Query
-        |--------------------------------------------------------------------------
-        */
-
-        $employees = Employee::query()
-
-            // Search
-            ->when($search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where(
-                        'employee_code',
-                        'like',
-                        "%{$search}%"
-                    )
-                        ->orWhere(
-                            'name',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'email',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'phone',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'department',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'position',
-                            'like',
-                            "%{$search}%"
-                        );
-                });
-            })
-
-            // Department Filter
-            ->when($department, function ($query, $department) {
-                $query->where(
-                    'department_code',
-                    $department
-                );
-            })
-
-            // Minimum Salary
-            ->when(
-                $minSalary !== null && $minSalary !== '',
-                function ($query) use ($minSalary) {
-                    $query->where(
-                        'salary',
-                        '>=',
-                        $minSalary
-                    );
-                }
-            )
-
-            // Maximum Salary
-            ->when(
-                $maxSalary !== null && $maxSalary !== '',
-                function ($query) use ($maxSalary) {
-                    $query->where(
-                        'salary',
-                        '<=',
-                        $maxSalary
-                    );
-                }
-            )
-
-            // Joining Date - From
-            ->when(
-                $fromDate !== null && $fromDate !== '',
-                function ($query) use ($fromDate) {
-                    $query->whereDate(
-                        'joining_date',
-                        '>=',
-                        $fromDate
-                    );
-                }
-            )
-
-            // Joining Date - To
-            ->when(
-                $toDate !== null && $toDate !== '',
-                function ($query) use ($toDate) {
-                    $query->whereDate(
-                        'joining_date',
-                        '<=',
-                        $toDate
-                    );
-                }
-            )
-
-            // Sorting
-            ->orderBy(
-                $sortBy,
-                $sortDirection
-            )
-
-            // Get all matching employees
-            ->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | CSV Download
-        |--------------------------------------------------------------------------
-        */
+        $employees = $this->employeeQuery(
+            $search,
+            $department,
+            $minSalary,
+            $maxSalary,
+            $fromDate,
+            $toDate,
+            $sortBy,
+            $sortDirection
+        )->get();
 
         return response()->streamDownload(
             function () use ($employees) {
-
                 $handle = fopen('php://output', 'w');
 
-                // CSV Header
+                /*
+                 * CSV Header
+                 */
                 fputcsv($handle, [
                     'Employee Code',
                     'Name',
@@ -371,7 +176,9 @@ class EmployeeController extends Controller
                     'Status',
                 ]);
 
-                // Employee Data
+                /*
+                 * Employee Data
+                 */
                 foreach ($employees as $employee) {
                     fputcsv($handle, [
                         $employee->employee_code,
@@ -389,7 +196,6 @@ class EmployeeController extends Controller
                 }
 
                 fclose($handle);
-
             },
             'employees.csv',
             [
@@ -452,6 +258,7 @@ class EmployeeController extends Controller
                 'required',
                 'string',
                 'max:50',
+                'exists:departments,department_code',
             ],
 
             'department' => [
@@ -490,9 +297,25 @@ class EmployeeController extends Controller
             ],
         ]);
 
-        DB::transaction(function () use ($request, $validated) {
+        /*
+         * Get department from Department Management.
+         */
+        $department = Department::where(
+            'department_code',
+            $validated['department_code']
+        )->firstOrFail();
 
-            // Create employee login account
+        DB::transaction(function () use (
+            $request,
+            $validated,
+            $department
+        ) {
+            /*
+             * Create employee login account.
+             *
+             * Default password:
+             * 12345678
+             */
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -500,24 +323,39 @@ class EmployeeController extends Controller
                 'role' => 'employee',
             ]);
 
-            // Store employee photo
+            /*
+             * Store employee photo.
+             */
             $photoPath = $request
                 ->file('photo')
                 ->store('employees', 'public');
 
-            // Create employee
+            /*
+             * Create employee.
+             */
             Employee::create([
                 'user_id' => $user->id,
+
                 'employee_code' => $validated['employee_code'],
+
                 'name' => $validated['name'],
+
                 'email' => $validated['email'],
+
                 'phone' => $validated['phone'],
-                'department_code' => $validated['department_code'],
-                'department' => $validated['department'],
+
+                'department_code' => $department->department_code,
+
+                'department' => $department->name,
+
                 'position' => $validated['position'],
+
                 'joining_date' => $validated['joining_date'],
+
                 'salary' => $validated['salary'],
+
                 'status' => $validated['status'],
+
                 'photo' => $photoPath,
             ]);
         });
@@ -571,6 +409,7 @@ class EmployeeController extends Controller
                 'required',
                 'string',
                 'max:50',
+
                 Rule::unique(
                     'employees',
                     'employee_code'
@@ -614,6 +453,7 @@ class EmployeeController extends Controller
                 'required',
                 'string',
                 'max:50',
+                'exists:departments,department_code',
             ],
 
             'department' => [
@@ -652,15 +492,38 @@ class EmployeeController extends Controller
             ],
         ]);
 
+        /*
+         * Get department from Department Management.
+         */
+        $department = Department::where(
+            'department_code',
+            $validated['department_code']
+        )->firstOrFail();
+
         DB::transaction(function () use (
             $request,
             $validated,
-            $employee
+            $employee,
+            $department
         ) {
-
+            /*
+             * Photo is handled separately.
+             */
             unset($validated['photo']);
 
-            // Update photo if a new photo is uploaded
+            /*
+             * Always use department data
+             * from Department Management.
+             */
+            $validated['department_code'] =
+                $department->department_code;
+
+            $validated['department'] =
+                $department->name;
+
+            /*
+             * Update photo if a new photo was uploaded.
+             */
             if ($request->hasFile('photo')) {
 
                 if ($employee->photo) {
@@ -674,10 +537,14 @@ class EmployeeController extends Controller
                     ->store('employees', 'public');
             }
 
-            // Update employee
+            /*
+             * Update employee.
+             */
             $employee->update($validated);
 
-            // Update linked login account
+            /*
+             * Update linked login account.
+             */
             if ($employee->user) {
                 $employee->user->update([
                     'name' => $validated['name'],
@@ -696,7 +563,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Display the logged-in employee's own profile.
+     * Display logged-in employee's own profile.
      */
     public function myProfile(Request $request)
     {
@@ -724,19 +591,25 @@ class EmployeeController extends Controller
     {
         DB::transaction(function () use ($employee) {
 
-            // Delete employee photo
+            /*
+             * Delete employee photo.
+             */
             if ($employee->photo) {
                 Storage::disk('public')->delete(
                     $employee->photo
                 );
             }
 
-            // Delete linked employee login account
+            /*
+             * Delete linked login account.
+             */
             if ($employee->user) {
                 $employee->user->delete();
             }
 
-            // Delete employee
+            /*
+             * Delete employee.
+             */
             $employee->delete();
         });
 
@@ -746,5 +619,187 @@ class EmployeeController extends Controller
                 'success',
                 'Employee deleted successfully.'
             );
+    }
+
+    /**
+     * Build employee query with filters and sorting.
+     */
+    private function employeeQuery(
+        ?string $search,
+        ?string $department,
+        ?string $minSalary,
+        ?string $maxSalary,
+        ?string $fromDate,
+        ?string $toDate,
+        string $sortBy,
+        string $sortDirection
+    ) {
+        return Employee::query()
+
+            /*
+             * Search
+             */
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+
+                    $q->where(
+                        'employee_code',
+                        'like',
+                        "%{$search}%"
+                    )
+                        ->orWhere(
+                            'name',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'email',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'phone',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'department',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'position',
+                            'like',
+                            "%{$search}%"
+                        );
+                });
+            })
+
+            /*
+             * Department
+             */
+            ->when($department, function (
+                $query,
+                $department
+            ) {
+                $query->where(
+                    'department_code',
+                    $department
+                );
+            })
+
+            /*
+             * Minimum Salary
+             */
+            ->when(
+                $minSalary !== null &&
+                $minSalary !== '',
+                function ($query) use ($minSalary) {
+                    $query->where(
+                        'salary',
+                        '>=',
+                        $minSalary
+                    );
+                }
+            )
+
+            /*
+             * Maximum Salary
+             */
+            ->when(
+                $maxSalary !== null &&
+                $maxSalary !== '',
+                function ($query) use ($maxSalary) {
+                    $query->where(
+                        'salary',
+                        '<=',
+                        $maxSalary
+                    );
+                }
+            )
+
+            /*
+             * Joining Date From
+             */
+            ->when(
+                $fromDate !== null &&
+                $fromDate !== '',
+                function ($query) use ($fromDate) {
+                    $query->whereDate(
+                        'joining_date',
+                        '>=',
+                        $fromDate
+                    );
+                }
+            )
+
+            /*
+             * Joining Date To
+             */
+            ->when(
+                $toDate !== null &&
+                $toDate !== '',
+                function ($query) use ($toDate) {
+                    $query->whereDate(
+                        'joining_date',
+                        '<=',
+                        $toDate
+                    );
+                }
+            )
+
+            /*
+             * Sorting
+             */
+            ->orderBy(
+                $sortBy,
+                $sortDirection
+            );
+    }
+
+    /**
+     * Validate sorting parameters.
+     */
+    private function validateSorting(
+        ?string $sortBy,
+        ?string $sortDirection
+    ): array {
+        $allowedSortColumns = [
+            'employee_code',
+            'name',
+            'joining_date',
+            'salary',
+            'created_at',
+        ];
+
+        $allowedSortDirections = [
+            'asc',
+            'desc',
+        ];
+
+        if (
+            ! in_array(
+                $sortBy,
+                $allowedSortColumns,
+                true
+            )
+        ) {
+            $sortBy = 'created_at';
+        }
+
+        if (
+            ! in_array(
+                $sortDirection,
+                $allowedSortDirections,
+                true
+            )
+        ) {
+            $sortDirection = 'desc';
+        }
+
+        return [
+            $sortBy,
+            $sortDirection,
+        ];
     }
 }
