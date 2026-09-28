@@ -567,14 +567,48 @@ class EmployeeController extends Controller
      */
     public function myProfile(Request $request)
     {
-        $employee = $request->user()->employee;
+        $user = $request->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Admin
+        |--------------------------------------------------------------------------
+        |
+        | Only rashmita@gmail.com is the Admin.
+        | Admin does not need an Employee record.
+        |
+        */
+
+        if ($user->email === 'rashmita@gmail.com') {
+            abort(
+                403,
+                'Admin does not have an employee profile.'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Employee
+        |--------------------------------------------------------------------------
+        |
+        | Every non-admin user must have a linked Employee record.
+        |
+        */
+
+        $employee = $user->employee;
 
         if (! $employee) {
             abort(
-                404,
-                'Employee profile not found.'
+                403,
+                'Employee account not found.'
             );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Employee My Profile
+        |--------------------------------------------------------------------------
+        */
 
         return Inertia::render(
             'employees/my-profile',

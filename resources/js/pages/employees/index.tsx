@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Employee = {
     id: number;
@@ -56,6 +56,22 @@ export default function Index({
 }: EmployeesPageProps) {
     const { flash } = usePage<PageProps>().props;
 
+    /*
+     * Success message
+     *
+     * Keep insert/update/delete messages during Inertia navigation.
+     * The message automatically disappears on a real browser refresh
+     * because React state is recreated from the current flash data.
+     */
+    const [persistentSuccess, setPersistentSuccess] =
+        useState<string | null>(flash.success ?? null);
+
+    useEffect(() => {
+        if (flash.success) {
+            setPersistentSuccess(flash.success);
+        }
+    }, [flash.success]);
+
     const [search, setSearch] = useState(
         filters?.search ?? '',
     );
@@ -94,7 +110,14 @@ export default function Index({
     |--------------------------------------------------------------------------
     */
 
+    const isFirstRender = useRef(true);
+
     useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
         const timer = setTimeout(() => {
             router.get(
                 '/employees',
@@ -503,9 +526,9 @@ export default function Index({
 
                     {/* SUCCESS MESSAGE */}
 
-                    {flash.success && (
+                    {persistentSuccess && (
                         <div className="no-print mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-5 py-4 font-semibold text-emerald-800 shadow-sm">
-                            ✓ {flash.success}
+                            ✓ {persistentSuccess}
                         </div>
                     )}
 
@@ -631,8 +654,6 @@ export default function Index({
 
                     <div className="no-print filter-section glossy-card mb-6 rounded-3xl">
 
-                        {/* FILTER HEADER */}
-
                         <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:px-7">
 
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -668,15 +689,9 @@ export default function Index({
                             </div>
                         </div>
 
-                        {/* FILTER CONTENT */}
-
                         <div className="space-y-5 p-5 sm:p-7">
 
-                            {/* SEARCH + DEPARTMENT */}
-
                             <div className="grid gap-5 lg:grid-cols-2">
-
-                                {/* SEARCH */}
 
                                 <div className="filter-box rounded-2xl p-4">
 
@@ -721,8 +736,6 @@ export default function Index({
 
                                     </div>
                                 </div>
-
-                                {/* DEPARTMENT */}
 
                                 <div className="filter-box rounded-2xl p-4">
 
@@ -778,8 +791,6 @@ export default function Index({
 
                             </div>
 
-                            {/* SALARY */}
-
                             <div className="filter-box rounded-2xl border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-green-50/40 p-5">
 
                                 <div className="mb-4 flex items-center gap-3">
@@ -801,8 +812,6 @@ export default function Index({
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
-
-                                    {/* MINIMUM */}
 
                                     <div>
                                         <label
@@ -839,8 +848,6 @@ export default function Index({
                                             Minimum: ₹500
                                         </p>
                                     </div>
-
-                                    {/* MAXIMUM */}
 
                                     <div>
                                         <label
@@ -881,8 +888,6 @@ export default function Index({
                                 </div>
                             </div>
 
-                            {/* JOINING DATE */}
-
                             <div className="filter-box rounded-2xl border-orange-100 bg-gradient-to-br from-orange-50/80 via-white to-amber-50/40 p-5">
 
                                 <div className="mb-4 flex items-center gap-3">
@@ -904,8 +909,6 @@ export default function Index({
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
-
-                                    {/* FROM */}
 
                                     <div>
                                         <label
@@ -931,8 +934,6 @@ export default function Index({
                                             className="glossy-input w-full rounded-xl border border-orange-100 bg-white px-4 py-3.5 text-sm font-semibold text-slate-800 outline-none transition-all focus:border-orange-500"
                                         />
                                     </div>
-
-                                    {/* TO */}
 
                                     <div>
                                         <label
@@ -961,8 +962,6 @@ export default function Index({
 
                                 </div>
                             </div>
-
-                            {/* SORT */}
 
                             <div className="filter-box rounded-2xl border-indigo-100 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/40 p-5">
 
@@ -1051,8 +1050,6 @@ export default function Index({
 
                                 </div>
                             </div>
-
-                            {/* ACTIVE FILTERS */}
 
                             {hasFilters && (
                                 <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 px-5 py-4 shadow-sm">
@@ -1216,7 +1213,7 @@ export default function Index({
 
                                                     <td className="no-print px-6 py-5">
 
-                                                        <div className="flex flex-wrap gap-2">
+                                                        <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
 
                                                             <Link
                                                                 href={`/employees/${employee.id}`}

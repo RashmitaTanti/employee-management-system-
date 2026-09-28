@@ -27,21 +27,42 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('dashboard', function (\Illuminate\Http\Request $request) {
 
+        $user = $request->user();
+
         /*
         |--------------------------------------------------------------------------
-        | Employee Dashboard
+        | Only this email is Admin
         |--------------------------------------------------------------------------
         */
 
-        if ($request->user()->role !== 'admin') {
+        $isAdmin = $user->email === 'rashmita@gmail.com';
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Non-Admin User
+        |--------------------------------------------------------------------------
+        |
+        | Every non-admin user must have a linked Employee record.
+        | If no Employee record exists, they cannot access Dashboard.
+        |
+        */
+
+        if (! $isAdmin) {
+
+            if (! $user->employee) {
+                abort(403, 'Employee account not found.');
+            }
 
             return Inertia::render('dashboard', [
                 'stats' => null,
+
                 'recentEmployees' => [],
+
                 'user' => [
-                    'name' => $request->user()->name,
-                    'email' => $request->user()->email,
-                    'role' => $request->user()->role,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => 'employee',
                 ],
             ]);
         }
@@ -51,10 +72,18 @@ Route::middleware(['auth'])->group(function () {
         |--------------------------------------------------------------------------
         | Admin Dashboard
         |--------------------------------------------------------------------------
+        |
+        | Admin is identified only by:
+        |
+        | rashmita@gmail.com
+        |
+        | Admin does NOT need to exist in the employees table.
+        |
         */
 
         // Total Employees
         $totalEmployees = Employee::count();
+
 
         // Active Employees
         $activeEmployees = Employee::where(
@@ -62,11 +91,13 @@ Route::middleware(['auth'])->group(function () {
             'active'
         )->count();
 
+
         // Inactive Employees
         $inactiveEmployees = Employee::where(
             'status',
             'inactive'
         )->count();
+
 
         // Total Used Departments
         // Count unique departments currently assigned to employees
@@ -81,6 +112,7 @@ Route::middleware(['auth'])->group(function () {
             ->distinct()
             ->count('department_code');
 
+
         // Recent Employees
         $recentEmployees = Employee::latest()
             ->take(5)
@@ -94,6 +126,7 @@ Route::middleware(['auth'])->group(function () {
                 'status',
             ]);
 
+
         return Inertia::render('dashboard', [
 
             'stats' => [
@@ -105,11 +138,11 @@ Route::middleware(['auth'])->group(function () {
 
             'recentEmployees' => $recentEmployees,
 
-            // Logged-in admin information
+            // Logged-in Admin information
             'user' => [
-                'name' => $request->user()->name,
-                'email' => $request->user()->email,
-                'role' => $request->user()->role,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => 'admin',
             ],
         ]);
 
@@ -153,10 +186,7 @@ Route::middleware(['auth'])->group(function () {
         | Print Employees
         |--------------------------------------------------------------------------
         |
-        | IMPORTANT:
         | This route must come BEFORE the employee resource route.
-        | Otherwise "employees/print" may be interpreted as
-        | employees/{employee}.
         |
         */
 

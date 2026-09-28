@@ -13,7 +13,19 @@ class AdminMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user() || $request->user()->role !== 'admin') {
+        $user = $request->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ONLY rashmita@gmail.com IS ADMIN
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            ! $user ||
+            $user->role !== 'admin' ||
+            $user->email !== 'rashmita@gmail.com'
+        ) {
             abort(403, 'Unauthorized access.');
         }
 
